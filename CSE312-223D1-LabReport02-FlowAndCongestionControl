@@ -1,0 +1,116 @@
+
+import java.util.*;
+
+public class TCPCongestionFlowControl {
+    private int cwnd;
+    private int ssthresh;
+    private int rtt;
+    private boolean congestion;
+    private int rwnd;
+
+    public TCPCongestionFlowControl(int init_ssthresh, int rwnd) {
+        cwnd = 1;
+        ssthresh = init_ssthresh;
+        congestion = false;
+        rtt = 0;
+        this.rwnd = rwnd;
+    }
+
+    public void run(int totalData) {
+        System.out.println("Connected to the Server...");
+        int dataSeqNum = 0;
+        System.out.println("Data transmission started...\n");
+
+        while (dataSeqNum < totalData) {
+            rtt++;
+            System.out.println("\nRTT #" + rtt);
+            System.out.println("Previous cwnd: " + cwnd);
+            System.out.println("ssthresh: " + ssthresh);
+            System.out.println("Receiver Window (rwnd): " + rwnd);
+
+            // Flow control: limit cwnd by rwnd
+            int effectiveCwnd = Math.min(cwnd, rwnd);
+
+            if (!congestion) {
+                if (cwnd < ssthresh) {
+                    cwnd *= 2;
+                    System.out.println("Slow Start phase...");
+                } else {
+                    cwnd += 1;
+                    System.out.println("Congestion Avoidance phase...");
+                }
+            }
+
+            System.out.println("Effective cwnd used this round: " + effectiveCwnd);
+            sendPacket(dataSeqNum, effectiveCwnd);
+            dataSeqNum += effectiveCwnd;
+        }
+
+        System.out.println("\nAll data sent successfully.");
+        System.out.println("Total RTTs: " + rtt);
+    }
+
+    public void sendPacket(int startSeq, int windowSize) {
+        System.out.println("Sending data [" + (startSeq + 1) + " to " + (startSeq + windowSize) + "]...");
+
+        if (!receiveAcknowledgment()) {
+            congestion = true;
+            System.out.println("!! Congestion detected !!");
+
+            if (timeout()) {
+                handleTimeout();
+            } else {
+                handleTripleDupAck();
+            }
+        } else {
+            congestion = false;
+            System.out.println("Acknowledgment received: Transmission successful.");
+        }
+    }
+
+    public boolean receiveAcknowledgment() {
+        Random rand = new Random();
+        return rand.nextInt(100) < 80;
+    }
+
+    public boolean timeout() {
+        Random rand = new Random();
+        return rand.nextBoolean();
+    }
+
+    public void handleTimeout() {
+        System.out.println("Timeout occurred. Entering slow start.");
+        ssthresh = cwnd / 2;
+        if (ssthresh == 0) ssthresh = 1;
+        cwnd = 1;
+        retransmit();
+    }
+
+    public void handleTripleDupAck() {
+        System.out.println("Triple Duplicate ACKs received. Entering fast recovery.");
+        ssthresh = cwnd / 2;
+        if (ssthresh == 0) ssthresh = 1;
+        cwnd = ssthresh;
+        retransmit();
+    }
+
+    public void retransmit() {
+        congestion = false;
+        System.out.println("Retransmitting lost packet...");
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter initial ssthresh: ");
+        int ssthresh = sc.nextInt();
+
+        System.out.print("Enter receiver window size (rwnd): ");
+        int rwnd = sc.nextInt();
+
+        System.out.print("Enter total data size to send: ");
+        int totalData = sc.nextInt();
+
+        TCPCongestionFlowControl control = new TCPCongestionFlowControl(ssthresh, rwnd);
+        control.run(totalData);
+    }
+}
